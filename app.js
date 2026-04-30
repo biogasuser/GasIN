@@ -50,6 +50,102 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSimulateSensor = document.getElementById('btn-simulate-sensor');
     const wasteFeedback = document.getElementById('waste-feedback');
 
+    // ---- STATE ----
+    let currentDeviceState = {};
+
+    // ---- Authentication Logic ----
+    authSwitchLink.addEventListener('click', () => {
+        authError.style.display = 'none';
+        if (authMode === 'login') {
+            authMode = 'register';
+            authTitle.innerText = 'Create Account';
+            btnLogin.style.display = 'none';
+            btnRegister.style.display = 'block';
+            authSwitchText.innerHTML = `Already have an account? <a id="auth-switch-link" style="color:var(--primary);cursor:pointer;font-weight:bold;">Login here</a>`;
+        } else {
+            authMode = 'login';
+            authTitle.innerText = 'GasIn';
+            btnLogin.style.display = 'block';
+            btnRegister.style.display = 'none';
+            authSwitchText.innerHTML = `Don't have an account? <a id="auth-switch-link" style="color:var(--primary);cursor:pointer;font-weight:bold;">Register here</a>`;
+        }
+        document.getElementById('auth-switch-link').addEventListener('click', authSwitchLink.click.bind(authSwitchLink));
+    });
+
+    const handleAuth = (type) => {
+        const username = authUsernameInput.value.trim();
+        const password = authPasswordInput.value.trim();
+        const package_type = document.getElementById('auth-package').value;
+        if (!username || !password) {
+            showAuthError('Fill out all fields');
+            return;
+        }
+
+        req('auth', {
+            body: JSON.stringify({ type, username, password, package_type })
+        })
+        .then(data => {
+            if (data.success) {
+                authModal.style.opacity = '0';
+                setTimeout(() => authModal.style.display = 'none', 400);
+                loadInitialData();
+            } else {
+                showAuthError(data.message || 'Authentication failed');
+            }
+        })
+        .catch(err => showAuthError('Network error'));
+    };
+
+    btnLogin.addEventListener('click', () => handleAuth('login'));
+    btnRegister.addEventListener('click', () => handleAuth('register'));
+
+    headerBtnLogout.addEventListener('click', () => {
+        req('auth', {
+            body: JSON.stringify({type: 'logout'})
+        }).then(() => location.reload());
+    });
+
+    const showAuthError = (msg) => {
+        authError.innerText = msg;
+        authError.style.display = 'block';
+    }
+
+    // ---- Tab Switching Logic ----
+    navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            navItems.forEach(nav => nav.classList.remove('active'));
+            tabContents.forEach(tab => tab.classList.remove('active'));
+            
+            const target = item.getAttribute('data-target');
+            item.classList.add('active');
+            
+            const targetEl = document.getElementById(target);
+            if(targetEl) targetEl.classList.add('active');
+
+            if (target === 'tab-dashboard') fetchDashboard();
+            if (target === 'tab-control') fetchControlState();
+            if (target === 'tab-analytics') fetchAnalytics();
+            if (target === 'tab-settings') fetchAnalytics();
+            if (target === 'tab-alerts') { fetchAlerts(); fetchTracking(); }
+        });
+    });
+
+    // ---- Toast Notification ----
+    const showToast = (message) => {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerText = message;
+        container.appendChild(toast);
+        
+        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
     // ---- Local Storage Database Mock Engine ----
     const initDB = () => {
         if (!localStorage.getItem('gasin_db')) {
